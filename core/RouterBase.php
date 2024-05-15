@@ -1,57 +1,83 @@
 <?php
+
 namespace core;
 
 use \src\Config;
 
-class RouterBase {
+class RouterBase
+{
+    private const URL_PATTERN = '(\{[a-z0-9]+})';
 
-    public function run($routes) {
+    public function run($routes)
+    {
         $method = Request::getMethod();
         $url = Request::getUrl();
 
-        // Define os itens padrão
+        /**
+         * Default Items
+         */
         $controller = Config::ERROR_CONTROLLER;
         $action = Config::DEFAULT_ACTION;
         $args = [];
+        $resultActions = [];
 
-        if(isset($routes[$method])) {
-            foreach($routes[$method] as $route => $callback) {
-                // Identifica os argumentos e substitui por regex
-                $pattern = preg_replace('(\{[a-z0-9]{1,}\})', '([a-z0-9-]{1,})', $route);
+        if (isset($routes[$method])) {
+            $resultActions = $this->setRoutesCallbacks($routes, $method, $url);
+        }
 
-                // Faz o match da URL
-                if(preg_match('#^('.$pattern.')*$#i', $url, $matches) === 1) {
-                    array_shift($matches);
-                    array_shift($matches);
+        $controller = "\src\controllers\\" . $resultActions['controller'] ?? $controller;
+        $definedController = new $controller();
 
-                    // Pega todos os argumentos para associar
-                    $itens = array();
-                    if(preg_match_all('(\{[a-z0-9]{1,}\})', $route, $m)) {
-                        $itens = preg_replace('(\{|\})', '', $m[0]);
-                    }
+        if ($resultActions['action']) {
+            $action = $resultActions['action'];
+            $args = $resultActions['args'];
+        }
+        $definedController->$action($args);
+    }
 
-                    // Faz a associação
-                    $args = array();
-                    foreach($matches as $key => $match) {
-                        $args[$itens[$key]] = $match;
-                    }
+    private function setRoutesCallbacks(array $routes, string $method, string $url): array
+    {
+        foreach ($routes[$method] as $route => $callback) {
+            /**
+             * Identify the arguments and replace them with a regex
+             */
+            $pattern = preg_replace(self::URL_PATTERN, self::URL_PATTERN, $route);
 
-                    // Seta o controller/action
-                    $callbackSplit = explode('@', $callback);
-                    $controller = $callbackSplit[0];
-                    if(isset($callbackSplit[1])) {
-                        $action = $callbackSplit[1];
-                    }
+            /**
+             * Matches the URL
+             */
+            if (preg_match('#^(' . $pattern . ')*$#i', $url, $matches) === 1) {
+                array_shift($matches);
+                array_shift($matches);
 
-                    break;
+                /**
+                 * Associate the arguments
+                 */
+                $items = array();
+                if (preg_match_all(self::URL_PATTERN, $route, $m)) {
+                    $items = preg_replace('([{}])', '', $m[0]);
                 }
+
+                /*
+                 * Perform the association
+                 */
+                $args = array();
+                foreach ($matches as $key => $match) {
+                    $args[$items[$key]] = $match;
+                }
+
+                /**
+                 * Set controller/action
+                 */
+                $callbackSplit = explode('@', $callback);
+                $controller = $callbackSplit[0];
+                if (isset($callbackSplit[1])) {
+                    $action = $callbackSplit[1];
+                }
+                break;
             }
         }
 
-        $controller = "\src\controllers\\$controller";
-        $definedController = new $controller();
-
-        $definedController->$action($args);
+        return ["controller" => $controller ?? "", "action" => $action ?? "", "args" => $args ?? ""];
     }
-    
 }

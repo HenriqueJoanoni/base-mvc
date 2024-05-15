@@ -1,59 +1,70 @@
 <?php
+
 namespace core;
 
-use \core\Database;
 use \ClanCats\Hydrahon\Builder;
 use \ClanCats\Hydrahon\Query\Sql\FetchableInterface;
 
-class Model {
+class Model
+{
+    protected static Builder $h;
+    protected static string $tableName;
 
-    protected static $_h;
-    
-    public function __construct() {
-        self::_checkH();
+    public function __construct()
+    {
+        self::checkH();
     }
 
-    public static function _checkH() {
-        if(self::$_h == null) {
+    public static function checkH()
+    {
+        if (self::$h == null) {
             $connection = Database::getInstance();
-            self::$_h = new Builder('mysql', function($query, $queryString, $queryParameters) use($connection) {
+            self::$h = new Builder('mysql', function ($query, $queryString, $queryParameters) use ($connection) {
                 $statement = $connection->prepare($queryString);
                 $statement->execute($queryParameters);
 
-                if ($query instanceof FetchableInterface)
-                {
+                if ($query instanceof FetchableInterface) {
                     return $statement->fetchAll(\PDO::FETCH_ASSOC);
                 }
             });
         }
-        
-        self::$_h = self::$_h->table( self::getTableName() );
+
+        self::$h = self::$h->table(self::getTableName());
     }
 
-    public static function getTableName() {
-        $className = explode('\\', get_called_class());
-        $className = end($className);
-        return strtolower($className).'s';
+    public static function getTableName(): string
+    {
+        if (isset(static::$tableName)) {
+            return static::$tableName;
+        } else {
+            $className = explode('\\', get_called_class());
+            $className = end($className);
+            return strtolower($className) . 's';
+        }
     }
 
-    public static function select($fields = []) {
-        self::_checkH();
-        return self::$_h->select($fields);
+    public static function select($fields = [])
+    {
+        self::checkH();
+        return self::$h->select($fields);
     }
 
-    public static function insert($fields = []) {
-        self::_checkH();
-        return self::$_h->insert($fields);
+    public static function insert($fields = [])
+    {
+        self::checkH();
+        return self::$h->insert($fields);
     }
 
-    public static function update($fields = []) {
-        self::_checkH();
-        return self::$_h->update($fields);
+    public static function update($fields = [])
+    {
+        self::checkH();
+        return self::$h->update($fields);
     }
 
-    public static function delete() {
-        self::_checkH();
-        return self::$_h->delete();
+    public static function delete()
+    {
+        self::checkH();
+        return self::$h->delete();
     }
 
 }
